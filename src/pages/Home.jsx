@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -62,6 +63,19 @@ function parseCSV(text) {
   return cards
 }
 
+function parseExcel(buffer) {
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+  const cards = []
+  for (const row of rows) {
+    const front = String(row[0] ?? '').trim()
+    const back = String(row[1] ?? '').trim()
+    if (front && back) cards.push({ front, back })
+  }
+  return cards
+}
+
 function ImportModal({ onClose, onImported }) {
   const { user } = useAuth()
   const fileRef = useRef()
@@ -74,11 +88,14 @@ function ImportModal({ onClose, onImported }) {
     const file = e.target.files[0]
     if (!file) return
     setError('')
-    setDeckName(file.name.replace(/\.csv$/i, ''))
+    setDeckName(file.name.replace(/\.(csv|xlsx|xls)$/i, ''))
 
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name)
     const reader = new FileReader()
     reader.onload = (evt) => {
-      const cards = parseCSV(evt.target.result)
+      const cards = isExcel
+        ? parseExcel(evt.target.result)
+        : parseCSV(evt.target.result)
       if (cards.length === 0) {
         setError('Aucune carte trouvée. Vérifiez que le fichier a deux colonnes (question, réponse).')
         setPreview(null)
@@ -86,7 +103,8 @@ function ImportModal({ onClose, onImported }) {
         setPreview(cards)
       }
     }
-    reader.readAsText(file, 'UTF-8')
+    if (isExcel) reader.readAsArrayBuffer(file)
+    else reader.readAsText(file, 'UTF-8')
   }
 
   async function handleImport() {
@@ -114,7 +132,7 @@ function ImportModal({ onClose, onImported }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl">
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Importer un CSV</h2>
+          <h2 className="font-semibold text-gray-900">Importer un fichier</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
 
@@ -122,22 +140,21 @@ function ImportModal({ onClose, onImported }) {
           {/* Format hint */}
           <div className="bg-gray-50 rounded-lg px-4 py-3 text-xs text-gray-500 space-y-1">
             <p className="font-medium text-gray-700">Format attendu :</p>
-            <p>Deux colonnes séparées par une virgule ou un point-virgule.</p>
+            <p>Deux colonnes : colonne A = question, colonne B = réponse. Fonctionne avec Excel (.xlsx) et CSV (.csv).</p>
             <p className="font-mono bg-white border border-gray-200 rounded px-2 py-1 mt-1">
-              question,réponse<br />
-              Capitale du Québec,Québec City<br />
-              Qu'est-ce que le PIB?,Produit intérieur brut
+              question &nbsp;&nbsp;&nbsp; réponse<br />
+              Capitale du Québec &nbsp;&nbsp;&nbsp; Québec City<br />
+              Qu'est-ce que le PIB? &nbsp;&nbsp;&nbsp; Produit intérieur brut
             </p>
-            <p>La première ligne peut être un en-tête (elle sera ignorée si elle ne ressemble pas à une carte).</p>
           </div>
 
           {/* File picker */}
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Fichier CSV</label>
+            <label className="block text-sm text-gray-600 mb-1">Fichier Excel ou CSV</label>
             <input
               ref={fileRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.xlsx,.xls,text/csv"
               onChange={handleFile}
               className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:text-sm hover:file:bg-indigo-100 cursor-pointer"
             />
@@ -261,7 +278,7 @@ export default function Home() {
             onClick={() => setShowImport(true)}
             className="border border-gray-200 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            Importer CSV
+            Importer
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
@@ -320,7 +337,7 @@ export default function Home() {
       {decks.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-3">📚</p>
-          <p className="text-sm">Aucun deck. Créez-en un ou importez un CSV !</p>
+          <p className="text-sm">Aucun deck. Créez-en un ou importez un fichier Excel / CSV !</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
