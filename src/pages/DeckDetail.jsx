@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Document, Heading2, Paragraph, TextRun, Packer, AlignmentType } from 'docx'
+import { Document, HeadingLevel, Paragraph, TextRun, Packer } from 'docx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import CardEditor from '../components/CardEditor'
@@ -114,7 +114,7 @@ export default function DeckDetail() {
     const children = []
     for (const card of cards) {
       children.push(
-        new Heading2({ children: [new TextRun(card.front)] })
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(card.front)] })
       )
       for (const line of card.back.split('\n')) {
         children.push(
