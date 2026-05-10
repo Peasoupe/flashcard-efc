@@ -76,7 +76,8 @@ function parseExcel(buffer) {
   return cards
 }
 
-const AI_PROMPT = `Tu vas reformater un fichier Excel pour qu'il soit compatible avec l'application de flashcards FlashEFC.
+const AI_PROMPTS = {
+  excel: `Tu vas reformater un fichier Excel pour qu'il soit compatible avec l'application de flashcards FlashEFC.
 
 STRUCTURE REQUISE :
 - Colonne A : question / recto de la carte
@@ -110,13 +111,51 @@ MISE EN FORME :
 - Gras : **texte**
 - Les titres d'étapes en gras sont recommandés
 
-Reformate maintenant le fichier Excel fourni en respectant ces règles. Conserve le contenu original, adapte uniquement la structure et la mise en forme.`
+Reformate maintenant le fichier Excel fourni en respectant ces règles. Conserve le contenu original, adapte uniquement la structure et la mise en forme.`,
+
+  csv: `Tu vas reformater un fichier en CSV pour qu'il soit compatible avec l'application de flashcards FlashEFC.
+
+STRUCTURE REQUISE :
+- Deux colonnes séparées par une virgule ou un point-virgule
+- Colonne 1 : question / recto de la carte
+- Colonne 2 : réponse / verso de la carte
+- Une carte par ligne, pas d'en-tête obligatoire
+- Les cellules contenant des sauts de ligne ou des virgules doivent être entourées de guillemets doubles
+
+BULLET POINTS :
+Commence chaque point par • ou - suivi d'un espace, séparés par des sauts de ligne à l'intérieur de la cellule (la cellule doit être entre guillemets doubles).
+Exemple :
+"Qu'est-ce que le goodwill ?","• Excédent du coût d'acquisition sur la JV des actifs nets
+• Comptabilisé uniquement lors d'un regroupement
+• Soumis à un test de dépréciation annuel"
+
+CARROUSEL PAR ÉTAPES :
+Pour diviser une réponse en plusieurs étapes, sépare chaque étape par --- seul sur une ligne à l'intérieur de la cellule (entre guillemets doubles).
+Exemple :
+"Étapes de comptabilisation","**Étape 1 — Identifier l'enjeu :**
+Texte de l'étape 1
+---
+**Étape 2 — Évaluer les critères :**
+• Critère A
+• Critère B
+---
+**Étape 3 — Conclure :**
+Texte de conclusion"
+
+MISE EN FORME :
+- Gras : **texte**
+- Les titres d'étapes en gras sont recommandés
+- Encodage : UTF-8
+
+Génère maintenant le fichier CSV en respectant ces règles. Conserve le contenu original, adapte uniquement la structure et la mise en forme.`,
+}
 
 function CopyPromptBox() {
+  const [mode, setMode] = useState('excel')
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {
-    navigator.clipboard.writeText(AI_PROMPT).then(() => {
+    navigator.clipboard.writeText(AI_PROMPTS[mode]).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -124,19 +163,33 @@ function CopyPromptBox() {
 
   return (
     <div className="border border-indigo-100 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between bg-indigo-50 px-3 py-2">
-        <span className="text-xs font-medium text-indigo-700">Prompt pour reformater avec une IA</span>
+      <div className="flex items-center justify-between bg-indigo-50 px-3 py-2 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-medium text-indigo-700 shrink-0">Prompt IA — reformater en</span>
+          <div className="flex rounded-md overflow-hidden border border-indigo-200 text-xs shrink-0">
+            <button
+              type="button"
+              onClick={() => { setMode('excel'); setCopied(false) }}
+              className={`px-2 py-0.5 transition-colors ${mode === 'excel' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-50'}`}
+            >Excel</button>
+            <button
+              type="button"
+              onClick={() => { setMode('csv'); setCopied(false) }}
+              className={`px-2 py-0.5 transition-colors ${mode === 'csv' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-50'}`}
+            >CSV</button>
+          </div>
+        </div>
         <button
           type="button"
           onClick={handleCopy}
-          className="text-xs px-2.5 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+          className="text-xs px-2.5 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shrink-0"
         >
           {copied ? '✓ Copié !' : 'Copier'}
         </button>
       </div>
       <textarea
         readOnly
-        value={AI_PROMPT}
+        value={AI_PROMPTS[mode]}
         rows={5}
         className="w-full text-xs text-gray-600 px-3 py-2 resize-none bg-white focus:outline-none font-mono leading-relaxed"
       />
