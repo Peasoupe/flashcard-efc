@@ -90,82 +90,67 @@ export default function CardEditor({ value, onChange, placeholder = 'Réponse…
     e.target.value = ''
   }
 
+  const toolbarBtn = (active) =>
+    `px-2 py-1 text-xs rounded-lg transition-colors ${
+      active ? 'bg-foret text-ivoire' : 'text-ink-3 hover:bg-rule/40 hover:text-ink'
+    }`
+
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500">
+    <div className="border border-rule rounded-[14px] overflow-hidden focus-within:border-foret transition-colors">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-100 bg-gray-50">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-rule bg-ivoire">
         {!stepMode && (
           <>
-            <button
-              type="button"
-              title="Liste à puces"
-              onClick={insertBulletList}
-              className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors font-mono"
-            >
+            <button type="button" title="Liste à puces" onClick={insertBulletList} className={toolbarBtn(false) + ' font-mono'}>
               • Liste
             </button>
-            <button
-              type="button"
-              title="Liste numérotée"
-              onClick={insertNumberedList}
-              className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors font-mono"
-            >
+            <button type="button" title="Liste numérotée" onClick={insertNumberedList} className={toolbarBtn(false) + ' font-mono'}>
               1. Liste
             </button>
-            <button
-              type="button"
-              title="Gras"
-              onClick={() => insertAtCursor('**', '**')}
-              className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors font-bold"
-            >
+            <button type="button" title="Gras" onClick={() => insertAtCursor('**', '**')} className={toolbarBtn(false) + ' font-bold'}>
               G
             </button>
-            <div className="w-px h-4 bg-gray-200 mx-1" />
+            <div className="w-px h-4 bg-rule mx-1" />
             <button
               type="button"
               onClick={() => fileRef.current.click()}
               disabled={uploading}
-              className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
+              className={toolbarBtn(false) + ' disabled:opacity-40'}
             >
-              {uploading ? 'Upload…' : '🖼 Image'}
+              {uploading ? 'Upload…' : 'Image'}
             </button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-            <div className="w-px h-4 bg-gray-200 mx-1" />
+            <div className="w-px h-4 bg-rule mx-1" />
           </>
         )}
-        <button
-          type="button"
-          onClick={toggleStepMode}
-          className={`px-2 py-1 text-xs rounded transition-colors ${stepMode ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-200'}`}
-        >
+        <button type="button" onClick={toggleStepMode} className={toolbarBtn(stepMode)}>
           Par étapes
         </button>
         <div className="flex-1" />
-        <button
-          type="button"
-          onClick={() => setPreview(!preview)}
-          className={`px-2 py-1 text-xs rounded transition-colors ${preview ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-200'}`}
-        >
+        <button type="button" onClick={() => setPreview(!preview)} className={toolbarBtn(preview)}>
           {preview ? 'Éditer' : 'Aperçu'}
         </button>
       </div>
 
       {/* Editor / Preview */}
       {preview ? (
-        <div className="px-3 py-2 min-h-20 text-sm">
-          {value ? <CardRenderer content={value} /> : <span className="text-gray-400 text-sm">{placeholder}</span>}
+        <div className="px-3 py-2 min-h-20 text-sm bg-ivoire-2">
+          {value
+            ? <CardRenderer content={value} />
+            : <span className="text-ink-3 text-sm">{placeholder}</span>
+          }
         </div>
       ) : stepMode ? (
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-rule bg-ivoire-2">
           {steps.map((stepContent, idx) => (
             <div key={idx}>
               <div className="flex items-center justify-between px-3 pt-2">
-                <span className="text-xs font-medium text-indigo-600">Étape {idx + 1}</span>
+                <span className="text-xs font-bold uppercase tracking-[1.5px] text-laiton">Étape {idx + 1}</span>
                 {steps.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeStep(idx)}
-                    className="text-gray-300 hover:text-red-400 text-sm leading-none transition-colors"
+                    className="text-ink-3 hover:text-seal text-sm leading-none transition-colors"
                   >
                     ×
                   </button>
@@ -176,7 +161,7 @@ export default function CardEditor({ value, onChange, placeholder = 'Réponse…
                 onChange={e => updateStep(idx, e.target.value)}
                 placeholder={`Contenu de l'étape ${idx + 1}…`}
                 rows={3}
-                className="w-full px-3 py-2 text-sm focus:outline-none resize-none bg-white"
+                className="w-full px-3 py-2 text-sm focus:outline-none resize-none bg-ivoire-2 text-ink placeholder:text-ink-3"
               />
             </div>
           ))}
@@ -184,7 +169,7 @@ export default function CardEditor({ value, onChange, placeholder = 'Réponse…
             <button
               type="button"
               onClick={addStep}
-              className="text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+              className="text-xs font-bold uppercase tracking-[1px] text-laiton hover:text-foret transition-colors"
             >
               + Ajouter une étape
             </button>
@@ -197,7 +182,7 @@ export default function CardEditor({ value, onChange, placeholder = 'Réponse…
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           rows={3}
-          className="w-full px-3 py-2 text-sm focus:outline-none resize-none bg-white"
+          className="w-full px-3 py-2 text-sm focus:outline-none resize-none bg-ivoire-2 text-ink placeholder:text-ink-3"
         />
       )}
     </div>

@@ -72,33 +72,33 @@ export default function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={handleOpen}
-        className="relative text-gray-600 hover:text-gray-900 transition-colors"
+        className="relative text-ivoire/70 hover:text-ivoire transition-colors"
         aria-label="Notifications"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-medium w-4 h-4 rounded-full flex items-center justify-center leading-none">
+          <span className="absolute -top-1 -right-1 bg-seal text-ivoire text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <p className="text-sm font-medium text-gray-900">Notifications</p>
+        <div className="absolute right-0 mt-2 w-80 bg-ivoire-2 border border-rule rounded-2xl z-50 overflow-hidden" style={{ boxShadow: '0 12px 28px -16px rgba(28,24,20,0.18)' }}>
+          <div className="px-4 py-3 border-b border-rule">
+            <p className="text-xs font-bold uppercase tracking-[1.5px] text-ink-3">Notifications</p>
           </div>
           {notifications.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">Aucune notification</p>
+            <p className="text-sm text-ink-3 text-center py-8">Aucune notification</p>
           ) : (
-            <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+            <div className="divide-y divide-rule max-h-80 overflow-y-auto">
               {notifications.map(n => (
-                <div key={n.id} className={`px-4 py-3 ${reads.has(n.id) ? '' : 'bg-indigo-50'}`}>
-                  <p className="text-sm font-medium text-gray-900">{n.title}</p>
-                  {n.body && <p className="text-sm text-gray-500 mt-0.5 whitespace-pre-wrap">{n.body}</p>}
-                  <p className="text-xs text-gray-300 mt-1">
+                <div key={n.id} className={`px-4 py-3 ${reads.has(n.id) ? '' : 'bg-laiton/10'}`}>
+                  <p className="text-sm font-bold text-ink">{n.title}</p>
+                  {n.body && <p className="text-sm text-ink-3 mt-0.5 whitespace-pre-wrap">{n.body}</p>}
+                  <p className="text-xs text-rule mt-1">
                     {new Date(n.created_at).toLocaleDateString('fr-CA', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </p>
                 </div>
