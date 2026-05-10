@@ -76,6 +76,74 @@ function parseExcel(buffer) {
   return cards
 }
 
+const AI_PROMPT = `Tu vas reformater un fichier Excel pour qu'il soit compatible avec l'application de flashcards FlashEFC.
+
+STRUCTURE REQUISE :
+- Colonne A : question / recto de la carte
+- Colonne B : réponse / verso de la carte
+- Une carte par ligne, pas d'en-tête obligatoire
+
+SAUTS DE LIGNE DANS UNE CELLULE :
+Dans Excel, les sauts de ligne à l'intérieur d'une cellule se font avec Alt+Entrée. Dans le fichier .xlsx généré, ils apparaissent comme des retours à la ligne normaux dans la cellule.
+
+BULLET POINTS :
+Commence chaque point par • ou - suivi d'un espace. Chaque point sur sa propre ligne (Alt+Entrée entre chaque).
+Exemple dans la cellule B2 :
+• Premier critère
+• Deuxième critère
+• Troisième critère
+
+CARROUSEL PAR ÉTAPES :
+Pour diviser une réponse en plusieurs étapes affichées l'une après l'autre, sépare chaque étape par --- seul sur une ligne.
+Exemple dans la cellule B2 :
+**Étape 1 — Identifier l'enjeu :**
+Texte de l'étape 1
+---
+**Étape 2 — Évaluer les critères :**
+• Critère A
+• Critère B
+---
+**Étape 3 — Conclure :**
+Texte de conclusion
+
+MISE EN FORME :
+- Gras : **texte**
+- Les titres d'étapes en gras sont recommandés
+
+Reformate maintenant le fichier Excel fourni en respectant ces règles. Conserve le contenu original, adapte uniquement la structure et la mise en forme.`
+
+function CopyPromptBox() {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    navigator.clipboard.writeText(AI_PROMPT).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="border border-indigo-100 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between bg-indigo-50 px-3 py-2">
+        <span className="text-xs font-medium text-indigo-700">Prompt pour reformater avec une IA</span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="text-xs px-2.5 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+        >
+          {copied ? '✓ Copié !' : 'Copier'}
+        </button>
+      </div>
+      <textarea
+        readOnly
+        value={AI_PROMPT}
+        rows={5}
+        className="w-full text-xs text-gray-600 px-3 py-2 resize-none bg-white focus:outline-none font-mono leading-relaxed"
+      />
+    </div>
+  )
+}
+
 function ImportModal({ onClose, onImported }) {
   const { user } = useAuth()
   const fileRef = useRef()
@@ -147,6 +215,9 @@ function ImportModal({ onClose, onImported }) {
               Qu'est-ce que le PIB? &nbsp;&nbsp;&nbsp; Produit intérieur brut
             </p>
           </div>
+
+          {/* AI prompt */}
+          <CopyPromptBox />
 
           {/* File picker */}
           <div>
