@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
+import JSZip from 'jszip'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -76,6 +77,70 @@ function parseExcel(buffer) {
   return cards
 }
 
+async function parsePPTX(buffer) {
+  const zip = await JSZip.loadAsync(buffer)
+
+  // Collect slide files in order
+  const slideEntries = Object.keys(zip.files)
+    .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+    .sort((a, b) => {
+      const n = s => parseInt(s.match(/\d+/)[0])
+      return n(a) - n(b)
+    })
+
+  function extractShapeTexts(xml) {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(xml, 'application/xml')
+    const NS = { sp: 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing' }
+
+    // Collect all <p:sp> shapes with their placeholder type and text
+    const shapes = []
+    const spNodes = doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/presentationml/2006/main', 'sp')
+
+    for (const sp of spNodes) {
+      // Detect placeholder type (title, body, etc.)
+      const phNodes = sp.getElementsByTagNameNS('http://schemas.openxmlformats.org/presentationml/2006/main', 'ph')
+      const phType = phNodes.length > 0 ? (phNodes[0].getAttribute('type') || 'body') : 'body'
+
+      // Extract all text runs
+      const tNodes = sp.getElementsByTagNameNS('http://schemas.openxmlformats.org/drawingml/2006/main', 't')
+      const pNodes = sp.getElementsByTagNameNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'p')
+
+      // Reconstruct paragraphs to preserve line breaks
+      const paragraphs = []
+      for (const p of pNodes) {
+        const runs = p.getElementsByTagNameNS('http://schemas.openxmlformats.org/drawingml/2006/main', 't')
+        const line = Array.from(runs).map(t => t.textContent).join('')
+        if (line.trim()) paragraphs.push(line)
+      }
+
+      const text = paragraphs.join('\n').trim()
+      if (text) shapes.push({ type: phType, text })
+    }
+
+    return shapes
+  }
+
+  const cards = []
+  for (const slidePath of slideEntries) {
+    const xml = await zip.files[slidePath].async('string')
+    const shapes = extractShapeTexts(xml)
+
+    // Title placeholder → front; everything else → back
+    const titleShape = shapes.find(s => s.type === 'title' || s.type === 'ctrTitle')
+    const bodyShapes = shapes.filter(s => s !== titleShape)
+
+    const front = titleShape ? titleShape.text : (shapes[0]?.text ?? '')
+    const back = bodyShapes.length > 0
+      ? bodyShapes.map(s => s.text).join('\n')
+      : (shapes[1]?.text ?? '')
+
+    if (front && back) cards.push({ front, back })
+  }
+
+  return cards
+}
+
 const AI_PROMPTS = {
   excel: `Tu vas reformater un fichier Excel pour qu'il soit compatible avec l'application de flashcards FlashEFC.
 
@@ -148,6 +213,38 @@ MISE EN FORME :
 - Encodage : UTF-8
 
 Génère maintenant le fichier CSV en respectant ces règles. Conserve le contenu original, adapte uniquement la structure et la mise en forme.`,
+
+  pptx: `Tu vas reformater une présentation PowerPoint pour qu'elle soit compatible avec l'application de flashcards FlashEFC.
+
+STRUCTURE REQUISE :
+- Une carte par slide
+- Titre de la slide → recto de la carte (question)
+- Contenu / corps de la slide → verso de la carte (réponse)
+- Les slides sans titre ou sans contenu seront ignorées
+
+BULLET POINTS :
+Utilise les listes à puces normales de PowerPoint. Chaque point sera automatiquement converti en liste dans l'application.
+Tu peux aussi utiliser • ou - en début de ligne dans une zone de texte.
+
+CARROUSEL PAR ÉTAPES :
+Pour diviser le verso en plusieurs étapes affichées l'une après l'autre, place le texte --- seul sur une ligne dans la zone de contenu de la slide.
+Exemple de contenu d'une slide :
+**Étape 1 — Identifier l'enjeu :**
+Texte de l'étape 1
+---
+**Étape 2 — Évaluer les critères :**
+• Critère A
+• Critère B
+---
+**Étape 3 — Conclure :**
+Texte de conclusion
+
+MISE EN FORME :
+- Gras : **texte** ou utilise le gras natif de PowerPoint
+- Les titres d'étapes en gras sont recommandés
+- Une seule zone de titre et une seule zone de contenu par slide
+
+Reformate maintenant la présentation PowerPoint en respectant ces règles. Conserve le contenu original, adapte uniquement la structure et la mise en forme.`,
 }
 
 function CopyPromptBox() {
@@ -177,6 +274,11 @@ function CopyPromptBox() {
               onClick={() => { setMode('csv'); setCopied(false) }}
               className={`px-2 py-0.5 transition-colors ${mode === 'csv' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-50'}`}
             >CSV</button>
+            <button
+              type="button"
+              onClick={() => { setMode('pptx'); setCopied(false) }}
+              className={`px-2 py-0.5 transition-colors ${mode === 'pptx' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-50'}`}
+            >PowerPoint</button>
           </div>
         </div>
         <button
@@ -209,22 +311,31 @@ function ImportModal({ onClose, onImported }) {
     const file = e.target.files[0]
     if (!file) return
     setError('')
-    setDeckName(file.name.replace(/\.(csv|xlsx|xls)$/i, ''))
+    setDeckName(file.name.replace(/\.(csv|xlsx|xls|pptx)$/i, ''))
 
+    const isPPTX = /\.pptx$/i.test(file.name)
     const isExcel = /\.(xlsx|xls)$/i.test(file.name)
     const reader = new FileReader()
-    reader.onload = (evt) => {
-      const cards = isExcel
-        ? parseExcel(evt.target.result)
-        : parseCSV(evt.target.result)
-      if (cards.length === 0) {
-        setError('Aucune carte trouvée. Vérifiez que le fichier a deux colonnes (question, réponse).')
+
+    reader.onload = async (evt) => {
+      try {
+        let cards
+        if (isPPTX) cards = await parsePPTX(evt.target.result)
+        else if (isExcel) cards = parseExcel(evt.target.result)
+        else cards = parseCSV(evt.target.result)
+
+        if (cards.length === 0) {
+          setError('Aucune carte trouvée. Vérifiez le format du fichier.')
+          setPreview(null)
+        } else {
+          setPreview(cards)
+        }
+      } catch {
+        setError('Erreur lors de la lecture du fichier.')
         setPreview(null)
-      } else {
-        setPreview(cards)
       }
     }
-    if (isExcel) reader.readAsArrayBuffer(file)
+    if (isPPTX || isExcel) reader.readAsArrayBuffer(file)
     else reader.readAsText(file, 'UTF-8')
   }
 
@@ -261,7 +372,8 @@ function ImportModal({ onClose, onImported }) {
           {/* Format hint */}
           <div className="bg-gray-50 rounded-lg px-4 py-3 text-xs text-gray-500 space-y-1">
             <p className="font-medium text-gray-700">Format attendu :</p>
-            <p>Deux colonnes : colonne A = question, colonne B = réponse. Fonctionne avec Excel (.xlsx) et CSV (.csv).</p>
+            <p>Excel (.xlsx) et CSV (.csv) : colonne A = question, colonne B = réponse.</p>
+            <p>PowerPoint (.pptx) : titre de la slide = question, contenu = réponse.</p>
             <p className="font-mono bg-white border border-gray-200 rounded px-2 py-1 mt-1">
               question &nbsp;&nbsp;&nbsp; réponse<br />
               Capitale du Québec &nbsp;&nbsp;&nbsp; Québec City<br />
@@ -274,11 +386,11 @@ function ImportModal({ onClose, onImported }) {
 
           {/* File picker */}
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Fichier Excel ou CSV</label>
+            <label className="block text-sm text-gray-600 mb-1">Fichier Excel, CSV ou PowerPoint</label>
             <input
               ref={fileRef}
               type="file"
-              accept=".csv,.xlsx,.xls,text/csv"
+              accept=".csv,.xlsx,.xls,.pptx,text/csv"
               onChange={handleFile}
               className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:text-sm hover:file:bg-indigo-100 cursor-pointer"
             />
@@ -461,7 +573,7 @@ export default function Home() {
       {decks.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-3">📚</p>
-          <p className="text-sm">Aucun deck. Créez-en un ou importez un fichier Excel / CSV !</p>
+          <p className="text-sm">Aucun deck. Créez-en un ou importez un fichier Excel, CSV ou PowerPoint !</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
