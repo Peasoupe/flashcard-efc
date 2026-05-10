@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { Document, HeadingLevel, Paragraph, TextRun, Packer } from 'docx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import CardEditor from '../components/CardEditor'
@@ -109,6 +110,33 @@ export default function DeckDetail() {
     navigate('/')
   }
 
+  async function exportToWord() {
+    const children = []
+    for (const card of cards) {
+      children.push(
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(card.front)] })
+      )
+      for (const line of card.back.split('\n')) {
+        children.push(
+          new Paragraph({ children: [new TextRun(line)] })
+        )
+      }
+      children.push(new Paragraph({}))
+    }
+
+    const doc = new Document({
+      sections: [{ properties: {}, children }],
+    })
+
+    const blob = await Packer.toBlob(doc)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${deck.name}.docx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function startEdit(card) {
     setEditingCard(card)
     setFront(card.front)
@@ -204,6 +232,15 @@ export default function DeckDetail() {
             >
               Réviser {dueCount > 0 ? `(${dueCount})` : 'tout'}
             </Link>
+          )}
+          {cards.length > 0 && (
+            <button
+              onClick={exportToWord}
+              className="border border-gray-200 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+              title="Exporter en Word (.docx)"
+            >
+              ↓ Word
+            </button>
           )}
           <button
             onClick={() => { setShowCardForm(!showCardForm); setEditingCard(null); setFront(''); setBack('') }}
