@@ -77,6 +77,58 @@ function parseExcel(buffer) {
   return cards
 }
 
+async function parseWord(buffer) {
+  const zip = await JSZip.loadAsync(buffer)
+  const xmlFile = zip.files['word/document.xml']
+  if (!xmlFile) return []
+  const xml = await xmlFile.async('string')
+
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  const WNS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+  const paragraphs = doc.getElementsByTagNameNS(WNS, 'p')
+
+  const cards = []
+  let currentFront = null
+  let backLines = []
+
+  function flushCard() {
+    if (currentFront && backLines.length > 0) {
+      cards.push({ front: currentFront, back: backLines.join('\n').trim() })
+    }
+    backLines = []
+    currentFront = null
+  }
+
+  for (const p of paragraphs) {
+    // Get paragraph style
+    const pPr = p.getElementsByTagNameNS(WNS, 'pPr')[0]
+    const pStyle = pPr?.getElementsByTagNameNS(WNS, 'pStyle')[0]?.getAttribute(`${WNS.replace('http://schemas.openxmlformats.org/wordprocessingml/2006/main', '')}val`)
+      ?? pPr?.getElementsByTagNameNS(WNS, 'pStyle')[0]?.getAttributeNS(WNS, 'val')
+      ?? pPr?.getElementsByTagNameNS(WNS, 'pStyle')[0]?.getAttribute('w:val')
+      ?? ''
+
+    // Extract text runs, preserving line breaks
+    const tNodes = p.getElementsByTagNameNS(WNS, 't')
+    const text = Array.from(tNodes).map(t => t.textContent).join('').trim()
+
+    const isHeading = /^(Heading|Titre|heading|titre)\d?$/i.test(pStyle) || /^heading/i.test(pStyle)
+
+    if (isHeading) {
+      flushCard()
+      if (text) currentFront = text
+    } else if (currentFront !== null) {
+      if (text === '---') {
+        backLines.push('---')
+      } else if (text) {
+        backLines.push(text)
+      }
+    }
+  }
+  flushCard()
+
+  return cards
+}
+
 async function parsePPTX(buffer) {
   const zip = await JSZip.loadAsync(buffer)
 
@@ -214,6 +266,44 @@ MISE EN FORME :
 
 Génère maintenant le fichier CSV en respectant ces règles. Conserve le contenu original, adapte uniquement la structure et la mise en forme.`,
 
+  word: `Tu vas reformater un document Word pour qu'il soit compatible avec l'application de flashcards FlashEFC.
+
+STRUCTURE REQUISE :
+- Chaque carte commence par un titre en style "Titre 2" (Heading 2) → ce sera le recto (question)
+- Le texte en style "Normal" qui suit → ce sera le verso (réponse)
+- La prochaine ligne "Titre 2" démarre une nouvelle carte automatiquement
+
+BULLET POINTS :
+Utilise les listes à puces normales de Word. Chaque point sera converti automatiquement.
+Tu peux aussi écrire • ou - en début de ligne dans un paragraphe Normal.
+Exemple :
+[Titre 2] Quels sont les critères de comptabilisation ?
+[Normal] • Premier critère
+[Normal] • Deuxième critère
+[Normal] • Troisième critère
+
+CARROUSEL PAR ÉTAPES :
+Pour diviser le verso en plusieurs étapes affichées l'une après l'autre, ajoute un paragraphe Normal contenant uniquement --- entre chaque étape.
+Exemple :
+[Titre 2] Étapes de comptabilisation des apports
+[Normal] **Étape 1 — Identifier l'enjeu :**
+[Normal] Texte de l'étape 1
+[Normal] ---
+[Normal] **Étape 2 — Évaluer les critères :**
+[Normal] • Critère A
+[Normal] • Critère B
+[Normal] ---
+[Normal] **Étape 3 — Conclure :**
+[Normal] Texte de conclusion
+
+MISE EN FORME :
+- Gras : **texte** ou gras natif de Word
+- Les titres d'étapes en gras sont recommandés
+- Ne pas utiliser Titre 1 (réservé au titre du document)
+- Encodage : UTF-8
+
+Reformate maintenant le document Word en respectant ces règles. Conserve le contenu original, adapte uniquement la structure et la mise en forme.`,
+
   pptx: `Tu vas reformater une présentation PowerPoint pour qu'elle soit compatible avec l'application de flashcards FlashEFC.
 
 STRUCTURE REQUISE :
@@ -279,6 +369,11 @@ function CopyPromptBox() {
               onClick={() => { setMode('pptx'); setCopied(false) }}
               className={`px-2 py-0.5 transition-colors ${mode === 'pptx' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-50'}`}
             >PowerPoint</button>
+            <button
+              type="button"
+              onClick={() => { setMode('word'); setCopied(false) }}
+              className={`px-2 py-0.5 transition-colors ${mode === 'word' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-50'}`}
+            >Word</button>
           </div>
         </div>
         <button
@@ -311,16 +406,18 @@ function ImportModal({ onClose, onImported }) {
     const file = e.target.files[0]
     if (!file) return
     setError('')
-    setDeckName(file.name.replace(/\.(csv|xlsx|xls|pptx)$/i, ''))
+    setDeckName(file.name.replace(/\.(csv|xlsx|xls|pptx|docx)$/i, ''))
 
     const isPPTX = /\.pptx$/i.test(file.name)
     const isExcel = /\.(xlsx|xls)$/i.test(file.name)
+    const isWord = /\.docx$/i.test(file.name)
     const reader = new FileReader()
 
     reader.onload = async (evt) => {
       try {
         let cards
         if (isPPTX) cards = await parsePPTX(evt.target.result)
+        else if (isWord) cards = await parseWord(evt.target.result)
         else if (isExcel) cards = parseExcel(evt.target.result)
         else cards = parseCSV(evt.target.result)
 
@@ -335,7 +432,7 @@ function ImportModal({ onClose, onImported }) {
         setPreview(null)
       }
     }
-    if (isPPTX || isExcel) reader.readAsArrayBuffer(file)
+    if (isPPTX || isExcel || isWord) reader.readAsArrayBuffer(file)
     else reader.readAsText(file, 'UTF-8')
   }
 
@@ -374,6 +471,7 @@ function ImportModal({ onClose, onImported }) {
             <p className="font-medium text-gray-700">Format attendu :</p>
             <p>Excel (.xlsx) et CSV (.csv) : colonne A = question, colonne B = réponse.</p>
             <p>PowerPoint (.pptx) : titre de la slide = question, contenu = réponse.</p>
+            <p>Word (.docx) : Titre 2 = question, paragraphes suivants = réponse.</p>
             <p className="font-mono bg-white border border-gray-200 rounded px-2 py-1 mt-1">
               question &nbsp;&nbsp;&nbsp; réponse<br />
               Capitale du Québec &nbsp;&nbsp;&nbsp; Québec City<br />
@@ -386,11 +484,11 @@ function ImportModal({ onClose, onImported }) {
 
           {/* File picker */}
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Fichier Excel, CSV ou PowerPoint</label>
+            <label className="block text-sm text-gray-600 mb-1">Fichier Excel, CSV, PowerPoint ou Word</label>
             <input
               ref={fileRef}
               type="file"
-              accept=".csv,.xlsx,.xls,.pptx,text/csv"
+              accept=".csv,.xlsx,.xls,.pptx,.docx,text/csv"
               onChange={handleFile}
               className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:text-sm hover:file:bg-indigo-100 cursor-pointer"
             />
@@ -573,7 +671,7 @@ export default function Home() {
       {decks.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-3">📚</p>
-          <p className="text-sm">Aucun deck. Créez-en un ou importez un fichier Excel, CSV ou PowerPoint !</p>
+          <p className="text-sm">Aucun deck. Créez-en un ou importez un fichier Excel, CSV, PowerPoint ou Word !</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
