@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Document, HeadingLevel, Paragraph, TextRun, Packer } from 'docx'
+import * as XLSX from 'xlsx'
+import PptxGenJS from 'pptxgenjs'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import CardEditor from '../components/CardEditor'
@@ -23,8 +25,22 @@ export default function DeckDetail() {
   const [publishing, setPublishing] = useState(false)
   const [showPublishModal, setShowPublishModal] = useState(false)
   const [authorName, setAuthorName] = useState('')
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showStudyModal, setShowStudyModal] = useState(false)
+  const exportMenuRef = useRef(null)
 
   useEffect(() => { fetchDeck() }, [id])
+
+  useEffect(() => {
+    if (!showExportMenu) return
+    function handleClick(e) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showExportMenu])
 
   async function fetchDeck() {
     setLoading(true)
@@ -124,6 +140,49 @@ export default function DeckDetail() {
     URL.revokeObjectURL(url)
   }
 
+  function exportToCSV() {
+    const rows = cards.map(card => {
+      const front = `"${card.front.replace(/"/g, '""')}"`
+      const back = `"${card.back.replace(/"/g, '""')}"`
+      return `${front},${back}`
+    })
+    const csv = 'Recto,Verso\n' + rows.join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${deck.name}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportToExcel() {
+    const data = [['Recto', 'Verso'], ...cards.map(c => [c.front, c.back])]
+    const ws = XLSX.utils.aoa_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Cartes')
+    XLSX.writeFile(wb, `${deck.name}.xlsx`)
+  }
+
+  async function exportToPPTX() {
+    const pptx = new PptxGenJS()
+    pptx.layout = 'LAYOUT_WIDE'
+    for (const card of cards) {
+      const slide = pptx.addSlide()
+      slide.addText(card.front, {
+        x: 0.5, y: 1.2, w: '88%', h: 1.2,
+        fontSize: 24, bold: true, color: '1C3326',
+        align: 'center', valign: 'middle', wrap: true,
+      })
+      slide.addText(card.back, {
+        x: 0.5, y: 2.8, w: '88%', h: 2.8,
+        fontSize: 16, color: '4A4540',
+        align: 'center', valign: 'top', wrap: true,
+      })
+    }
+    await pptx.writeFile({ fileName: `${deck.name}.pptx` })
+  }
+
   function startEdit(card) {
     setEditingCard(card)
     setFront(card.front)
@@ -198,6 +257,34 @@ export default function DeckDetail() {
         </div>
       )}
 
+      {showStudyModal && (
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 px-4" onClick={() => setShowStudyModal(false)}>
+          <div
+            className="bg-ivoire-2 rounded-2xl w-full max-w-sm border border-rule p-6 space-y-3"
+            style={{ boxShadow: '0 12px 28px -16px rgba(28,24,20,0.18)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="font-display font-semibold text-foret" style={{ fontSize: '22px' }}>
+              Mode d'étude
+            </h2>
+            <button
+              onClick={() => { setShowStudyModal(false); navigate(`/study/${id}?mode=all`) }}
+              className="w-full text-left border border-rule rounded-[18px] px-5 py-4 hover:border-laiton transition-colors group"
+            >
+              <p className="font-bold text-ink text-sm group-hover:text-foret transition-colors">Tout le deck</p>
+              <p className="text-xs text-ink-3 mt-0.5">{cards.length} carte{cards.length !== 1 ? 's' : ''} · toutes les cartes mélangées</p>
+            </button>
+            <button
+              onClick={() => { setShowStudyModal(false); navigate(`/study/${id}?mode=unseen`) }}
+              className="w-full text-left border border-rule rounded-[18px] px-5 py-4 hover:border-laiton transition-colors group"
+            >
+              <p className="font-bold text-ink text-sm group-hover:text-foret transition-colors">Non étudiées — dernière session</p>
+              <p className="text-xs text-ink-3 mt-0.5">Cartes ignorées ou ajoutées depuis la dernière session</p>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mb-1">
         <Link to="/" className="text-xs font-bold uppercase tracking-[1.5px] text-ink-3 hover:text-ink transition-colors">
           ← Decks
@@ -247,21 +334,43 @@ export default function DeckDetail() {
 
         <div className="flex gap-2 flex-shrink-0">
           {cards.length > 0 && (
-            <Link
-              to={`/study/${id}`}
+            <button
+              onClick={() => setShowStudyModal(true)}
               className="bg-foret text-ivoire text-sm px-4 py-2 rounded-[18px] hover:brightness-90 transition-all font-bold"
             >
               Réviser {dueCount > 0 ? `(${dueCount})` : 'tout'}
-            </Link>
+            </button>
           )}
           {cards.length > 0 && (
-            <button
-              onClick={exportToWord}
-              className="border border-rule text-ink-2 text-sm px-4 py-2 rounded-[18px] hover:border-laiton transition-colors font-bold"
-              title="Exporter en Word (.docx)"
-            >
-              ↓ Word
-            </button>
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setShowExportMenu(v => !v)}
+                className="border border-rule text-ink-2 text-sm px-4 py-2 rounded-[18px] hover:border-laiton transition-colors font-bold"
+              >
+                ↓ Exporter
+              </button>
+              {showExportMenu && (
+                <div
+                  className="absolute right-0 mt-1 bg-ivoire-2 border border-rule rounded-xl shadow-lg z-20 overflow-hidden"
+                  style={{ minWidth: '140px', boxShadow: '0 8px 20px -8px rgba(28,24,20,0.18)' }}
+                >
+                  {[
+                    { label: 'CSV (.csv)', fn: exportToCSV },
+                    { label: 'Excel (.xlsx)', fn: exportToExcel },
+                    { label: 'Word (.docx)', fn: exportToWord },
+                    { label: 'PowerPoint (.pptx)', fn: exportToPPTX },
+                  ].map(({ label, fn }) => (
+                    <button
+                      key={label}
+                      onClick={() => { fn(); setShowExportMenu(false) }}
+                      className="w-full text-left text-sm px-4 py-2.5 text-ink-2 hover:bg-foret/5 hover:text-foret transition-colors font-medium"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
           <button
             onClick={() => { setShowCardForm(!showCardForm); setEditingCard(null); setFront(''); setBack('') }}

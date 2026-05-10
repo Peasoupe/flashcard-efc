@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { sm2, isDue } from '../lib/sm2'
@@ -100,6 +100,8 @@ export default function Study() {
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const mode = searchParams.get('mode')
 
   const [deck, setDeck] = useState(null)
   const [queue, setQueue] = useState([])
@@ -144,9 +146,26 @@ export default function Study() {
     const { data: cards } = await supabase
       .from('cards').select('*').eq('deck_id', id)
 
-    const due = (cards || []).filter(isDue)
-    const shuffled = due.sort(() => Math.random() - 0.5)
-    setQueue(shuffled.length > 0 ? shuffled : (cards || []).sort(() => Math.random() - 0.5))
+    const all = cards || []
+    let filtered
+
+    if (mode === 'all') {
+      filtered = all
+    } else if (mode === 'unseen') {
+      const lastSessionDate = all
+        .map(c => c.last_review_date)
+        .filter(Boolean)
+        .sort()
+        .at(-1)
+      filtered = lastSessionDate
+        ? all.filter(c => c.last_review_date !== lastSessionDate)
+        : all
+    } else {
+      const due = all.filter(isDue)
+      filtered = due.length > 0 ? due : all
+    }
+
+    setQueue(filtered.sort(() => Math.random() - 0.5))
     setLoading(false)
   }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import OAuthButtons from '../components/OAuthButtons'
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -83,6 +84,12 @@ export default function Register() {
           >
             {loading ? 'Création…' : 'Créer le compte'}
           </button>
+          <div className="flex items-center gap-3 py-1">
+            <div className="flex-1 h-px bg-rule" />
+            <span className="text-xs font-bold uppercase tracking-[1.5px] text-ink-3">ou</span>
+            <div className="flex-1 h-px bg-rule" />
+          </div>
+          <OAuthButtons />
           <p className="text-sm text-center text-ink-3">
             Déjà un compte ?{' '}
             <Link to="/login" className="text-laiton hover:text-foret transition-colors font-bold">
