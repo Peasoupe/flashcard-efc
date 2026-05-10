@@ -12,6 +12,10 @@ const mdComponents = {
   strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
 }
 
+function normalizeBullets(text) {
+  return text.replace(/^[•·]\s*/gm, '- ')
+}
+
 export default function CardRenderer({ content }) {
   const steps = content.split('\n---\n').filter(s => s.trim())
   const [step, setStep] = useState(0)
@@ -19,12 +23,12 @@ export default function CardRenderer({ content }) {
   useEffect(() => { setStep(0) }, [content])
 
   if (steps.length <= 1) {
-    return <ReactMarkdown components={mdComponents}>{content}</ReactMarkdown>
+    return <ReactMarkdown components={mdComponents}>{normalizeBullets(content)}</ReactMarkdown>
   }
 
   return (
     <div>
-      <ReactMarkdown components={mdComponents}>{steps[step]}</ReactMarkdown>
+      <ReactMarkdown components={mdComponents}>{normalizeBullets(steps[step])}</ReactMarkdown>
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
         <button
           type="button"
