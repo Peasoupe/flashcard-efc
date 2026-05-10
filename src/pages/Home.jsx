@@ -4,29 +4,59 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/)
   const cards = []
+  let pos = 0
+  const len = text.length
 
-  for (const line of lines) {
-    if (!line.trim()) continue
-
-    // Support comma and semicolon separators, handle quoted fields
-    let cols
-    if (line.includes('"')) {
-      const regex = /("([^"]*)"|([^,;]+))[,;]?/g
-      cols = []
-      let match
-      while ((match = regex.exec(line)) !== null) {
-        cols.push((match[2] ?? match[3] ?? '').trim())
+  function parseField(sep) {
+    if (pos < len && text[pos] === '"') {
+      // Quoted field — collect until closing quote (handles embedded newlines)
+      pos++ // skip opening quote
+      let value = ''
+      while (pos < len) {
+        if (text[pos] === '"') {
+          if (text[pos + 1] === '"') { value += '"'; pos += 2 } // escaped quote
+          else { pos++; break } // closing quote
+        } else {
+          value += text[pos++]
+        }
       }
+      // skip separator after field
+      if (pos < len && (text[pos] === sep || text[pos] === ';' || text[pos] === ',')) pos++
+      return value
     } else {
-      const sep = line.includes(';') ? ';' : ','
-      cols = line.split(sep).map(c => c.trim())
+      // Unquoted field — read until separator or newline
+      let start = pos
+      while (pos < len && text[pos] !== sep && text[pos] !== '\n' && text[pos] !== '\r') pos++
+      const value = text.slice(start, pos).trim()
+      if (pos < len && (text[pos] === sep || text[pos] === ';' || text[pos] === ',')) pos++
+      return value
     }
+  }
 
-    if (cols.length >= 2 && cols[0] && cols[1]) {
-      cards.push({ front: cols[0], back: cols[1] })
+  while (pos < len) {
+    // Skip blank lines
+    while (pos < len && (text[pos] === '\r' || text[pos] === '\n')) pos++
+    if (pos >= len) break
+
+    // Detect separator from this row's first unquoted separator character
+    const rowStart = pos
+    let sep = ','
+    {
+      let p = pos
+      if (text[p] === '"') { p++; while (p < len && !(text[p] === '"' && text[p+1] !== '"')) p++; p += 2 }
+      else { while (p < len && text[p] !== ',' && text[p] !== ';' && text[p] !== '\n') p++ }
+      if (p < len && text[p] === ';') sep = ';'
     }
+    pos = rowStart
+
+    const front = parseField(sep)
+    const back = parseField(sep)
+
+    // Consume rest of the row (any extra fields or trailing CRLF)
+    while (pos < len && text[pos] !== '\n') pos++
+
+    if (front && back) cards.push({ front, back })
   }
 
   return cards
