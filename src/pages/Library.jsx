@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -59,14 +59,14 @@ export default function Library() {
 
   const isOwnDeck = (deck) => deck.user_id === user.id
 
-  const filtered = decks.filter(d => {
+  const filtered = useMemo(() => decks.filter(d => {
     const matchSearch = d.name.toLowerCase().includes(search.toLowerCase()) ||
       (d.author_name || '').toLowerCase().includes(search.toLowerCase())
     if (!matchSearch) return false
     if (filter === 'own') return isOwnDeck(d)
     if (filter === 'community') return !isOwnDeck(d)
     return true
-  })
+  }), [decks, search, filter, user.id])
 
   return (
     <div className="max-w-4xl mx-auto px-4 w-full" style={{ paddingTop: '64px', paddingBottom: '80px' }}>

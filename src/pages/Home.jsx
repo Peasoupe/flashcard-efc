@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -514,8 +514,12 @@ export default function Home() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [decks, setDecks] = useState([])
-  const [stats, setStats] = useState({ total: 0, due: 0, mastered: 0 })
   const [loading, setLoading] = useState(true)
+  const stats = useMemo(() => ({
+    total: decks.reduce((a, d) => a + d.cardCount, 0),
+    due: decks.reduce((a, d) => a + d.due, 0),
+    mastered: decks.reduce((a, d) => a + d.mastered, 0),
+  }), [decks])
   const [newDeckName, setNewDeckName] = useState('')
   const [creating, setCreating] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -540,10 +544,6 @@ export default function Home() {
         return { ...deck, cardCount: cards.length, due, mastered }
       })
       setDecks(processed)
-      const total = processed.reduce((a, d) => a + d.cardCount, 0)
-      const due = processed.reduce((a, d) => a + d.due, 0)
-      const mastered = processed.reduce((a, d) => a + d.mastered, 0)
-      setStats({ total, due, mastered })
     }
     setLoading(false)
   }

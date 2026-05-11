@@ -26,7 +26,7 @@ export default function DeckDetail() {
   const [showStudyModal, setShowStudyModal] = useState(false)
   const exportMenuRef = useRef(null)
 
-  useEffect(() => { fetchDeck() }, [id])
+  useEffect(() => { fetchDeck() }, [id, user.id])
 
   useEffect(() => {
     if (!showExportMenu) return
@@ -41,13 +41,12 @@ export default function DeckDetail() {
 
   async function fetchDeck() {
     setLoading(true)
-    const { data: deckData } = await supabase
-      .from('decks').select('*').eq('id', id).eq('user_id', user.id).single()
+    const [{ data: deckData }, { data: cardsData }] = await Promise.all([
+      supabase.from('decks').select('*').eq('id', id).eq('user_id', user.id).single(),
+      supabase.from('cards').select('*').eq('deck_id', id).order('created_at', { ascending: false }),
+    ])
 
     if (!deckData) { navigate('/'); return }
-
-    const { data: cardsData } = await supabase
-      .from('cards').select('*').eq('deck_id', id).order('created_at', { ascending: false })
 
     setDeck(deckData)
     setDeckName(deckData.name)
