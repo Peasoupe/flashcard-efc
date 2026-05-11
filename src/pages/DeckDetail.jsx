@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Document, HeadingLevel, Paragraph, TextRun, Packer } from 'docx'
-import * as XLSX from 'xlsx'
-import PptxGenJS from 'pptxgenjs'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import CardEditor from '../components/CardEditor'
@@ -120,6 +117,7 @@ export default function DeckDetail() {
   }
 
   async function exportToWord() {
+    const { Document, HeadingLevel, Paragraph, TextRun, Packer } = await import('docx')
     const children = []
     for (const card of cards) {
       children.push(
@@ -156,7 +154,8 @@ export default function DeckDetail() {
     URL.revokeObjectURL(url)
   }
 
-  function exportToExcel() {
+  async function exportToExcel() {
+    const XLSX = await import('xlsx')
     const data = [['Recto', 'Verso'], ...cards.map(c => [c.front, c.back])]
     const ws = XLSX.utils.aoa_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -165,6 +164,7 @@ export default function DeckDetail() {
   }
 
   async function exportToPPTX() {
+    const { default: PptxGenJS } = await import('pptxgenjs')
     const pptx = new PptxGenJS()
     pptx.layout = 'LAYOUT_WIDE'
     for (const card of cards) {

@@ -1,14 +1,24 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Navbar from './components/Navbar'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Home from './pages/Home'
-import DeckDetail from './pages/DeckDetail'
-import Study from './pages/Study'
-import Library from './pages/Library'
-import Admin from './pages/Admin'
+
+const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
+const Home = lazy(() => import('./pages/Home'))
+const DeckDetail = lazy(() => import('./pages/DeckDetail'))
+const Study = lazy(() => import('./pages/Study'))
+const Library = lazy(() => import('./pages/Library'))
+const Admin = lazy(() => import('./pages/Admin'))
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center flex-1 min-h-screen">
+      <div className="w-6 h-6 border-2 border-rule border-t-foret rounded-full animate-spin" />
+    </div>
+  )
+}
 
 function Layout({ children }) {
   return (
@@ -23,6 +33,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -53,6 +64,7 @@ export default function App() {
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   )

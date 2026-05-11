@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import * as XLSX from 'xlsx'
-import JSZip from 'jszip'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -56,7 +54,8 @@ function parseCSV(text) {
   return cards
 }
 
-function parseExcel(buffer) {
+async function parseExcel(buffer) {
+  const XLSX = await import('xlsx')
   const workbook = XLSX.read(buffer, { type: 'array' })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
@@ -70,6 +69,7 @@ function parseExcel(buffer) {
 }
 
 async function parseWord(buffer) {
+  const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(buffer)
   const xmlFile = zip.files['word/document.xml']
   if (!xmlFile) return []
@@ -115,6 +115,7 @@ async function parseWord(buffer) {
 }
 
 async function parsePPTX(buffer) {
+  const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(buffer)
   const slideEntries = Object.keys(zip.files)
     .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
